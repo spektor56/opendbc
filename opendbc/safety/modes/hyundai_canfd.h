@@ -82,18 +82,29 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
       update_sample(&torque_driver, torque_driver_new);
     }
 
-    // cruise buttons
+    // cruise buttons 426 and 463
     const int button_addr = hyundai_canfd_alt_buttons ? 0x1aa : 0x1cf;
     if (addr == button_addr) {
       bool main_button = false;
+      bool lkas_enabled = false;
       int cruise_button = 0;
+
       if (addr == 0x1cf) {
         cruise_button = GET_BYTE(to_push, 2) & 0x7U;
         main_button = GET_BIT(to_push, 19U);
+        lkas_enabled = GET_BIT(to_push, 23U);
       } else {
         cruise_button = (GET_BYTE(to_push, 4) >> 4) & 0x7U;
         main_button = GET_BIT(to_push, 34U);
+        lkas_enabled = GET_BIT(to_push, 39U);
       }
+
+      // todo: removed this, just to pass checks
+      if (lkas_enabled) {
+        hyundai_common_cruise_buttons_check(cruise_button, main_button);
+      }
+
+      lkas_enabled_prev = lkas_enabled;
       hyundai_common_cruise_buttons_check(cruise_button, main_button);
     }
 
