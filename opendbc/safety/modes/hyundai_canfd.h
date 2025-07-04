@@ -84,14 +84,25 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *msg) {
     const unsigned int button_addr = hyundai_canfd_alt_buttons ? 0x1aaU : 0x1cfU;
     if (msg->addr == button_addr) {
       bool main_button = false;
+      bool lkas_enabled = false;
       int cruise_button = 0;
       if (msg->addr == 0x1cfU) {
         cruise_button = msg->data[2] & 0x7U;
         main_button = GET_BIT(msg, 19U);
+        lkas_enabled = GET_BIT(msg, 23U);
       } else {
         cruise_button = (msg->data[4] >> 4) & 0x7U;
         main_button = GET_BIT(msg, 34U);
+        lkas_enabled = GET_BIT(msg, 39U);
       }
+
+      if ((alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0){
+          if (lkas_enabled != lkas_enabled_prev) {
+            controls_allowed = true;
+          }
+      }
+
+      lkas_enabled_prev = lkas_enabled;
       hyundai_common_cruise_buttons_check(cruise_button, main_button);
     }
 
