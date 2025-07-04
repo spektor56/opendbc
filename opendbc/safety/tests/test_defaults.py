@@ -3,6 +3,7 @@ import unittest
 
 import opendbc.safety.tests.common as common
 from opendbc.car.structs import CarParams
+from opendbc.safety import ALTERNATIVE_EXPERIENCE
 from opendbc.safety.tests.libsafety import libsafety_py
 
 
@@ -59,6 +60,37 @@ class TestAllOutput(TestDefaultRxHookBase):
     # No point, since we allow all messages
     pass
 
+  #test base implementation of rx_hook
+  def test_resume_lkas_after_brake(self):
+    # Test the alternative_experience flag ALT_EXP_RESUME_LKAS_AFTER_BRAKE
+
+    # Scenario 1: LKAS resume OFF
+    self.safety.set_alternative_experience(0)
+    self.safety.set_controls_allowed(True)
+    self.safety.set_brake_pressed_prev(False)
+    self.safety.set_brake_pressed(True)
+
+    self._rx(common.make_msg(0, 0, 8))
+    self.assertFalse(self.safety.get_controls_allowed(), "Controls should be disallowed after brake press")
+
+    self.safety.set_brake_pressed(False)
+
+    self._rx(common.make_msg(0, 0, 8))
+    self.assertFalse(self.safety.get_controls_allowed(), "Controls should remain disallowed (LKAS resume OFF)")
+
+    # Scenario 2: LKAS resume ON
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.RESUME_LKAS_AFTER_BRAKE)
+    self.safety.set_controls_allowed(True)
+    self.safety.set_vehicle_moving(False)
+    self.safety.set_brake_pressed(True)
+
+    self._rx(common.make_msg(0, 0, 8))
+    self.assertFalse(self.safety.get_controls_allowed(), "Controls should be disallowed after brake press")
+
+    self.safety.set_brake_pressed(False)
+
+    self._rx(common.make_msg(0, 0, 8))
+    self.assertTrue(self.safety.get_controls_allowed(), "Controls should be allowed (LKAS resume ON)")
 
 class TestAllOutputPassthrough(TestAllOutput):
   FWD_BLACKLISTED_ADDRS = {}

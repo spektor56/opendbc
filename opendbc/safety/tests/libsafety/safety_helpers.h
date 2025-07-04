@@ -53,8 +53,20 @@ void set_gas_pressed_prev(bool c){
   gas_pressed_prev = c;
 }
 
+bool get_brake_pressed(void){
+  return brake_pressed;
+}
+
+void set_brake_pressed(bool c){
+  brake_pressed = c;
+}
+
 bool get_brake_pressed_prev(void){
   return brake_pressed_prev;
+}
+
+void set_brake_pressed_prev(bool c){
+  brake_pressed_prev = c;
 }
 
 bool get_regen_braking_prev(void){
@@ -75,6 +87,10 @@ void set_cruise_engaged_prev(bool engaged){
 
 bool get_vehicle_moving(void){
   return vehicle_moving;
+}
+
+void set_vehicle_moving(bool c){
+  vehicle_moving = c;
 }
 
 bool get_acc_main_on(void){

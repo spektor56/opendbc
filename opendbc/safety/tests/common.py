@@ -1120,3 +1120,28 @@ class PandaCarSafetyTest(PandaSafetyTest):
     self.safety.safety_tick_current_safety_config()
     self.assertFalse(self.safety.get_controls_allowed())
     self.assertFalse(self.safety.safety_config_valid())
+
+  def test_resume_lkas_after_brake(self):
+    # Test the alternative_experience flag ALT_EXP_RESUME_LKAS_AFTER_BRAKE
+
+    # Scenario 1: LKAS resume OFF
+    self.safety.set_alternative_experience(0)
+    self.safety.set_controls_allowed(True) # Start with controls allowed
+    self.safety.set_brake_pressed_prev(False) # Ensure brake_pressed_prev is false
+
+    self._rx(self._user_brake_msg(True))
+    self.assertFalse(self.safety.get_controls_allowed(), "Controls should be disallowed after brake press")
+
+    self._rx(self._user_brake_msg(False))
+    self.assertFalse(self.safety.get_controls_allowed(), "Controls should remain disallowed (LKAS resume OFF)")
+
+    # Scenario 2: LKAS resume ON
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.RESUME_LKAS_AFTER_BRAKE | ALTERNATIVE_EXPERIENCE.SPLIT_LKAS_AND_ACC)
+    self.safety.set_controls_allowed(True) # Start with controls allowed
+    self.safety.set_vehicle_moving(False)
+
+    self._rx(self._user_brake_msg(True))
+    self.assertFalse(self.safety.get_controls_allowed(), "Controls should be disallowed after brake press")
+
+    self._rx(self._user_brake_msg(False))
+    self.assertTrue(self.safety.get_controls_allowed(), "Controls should be allowed (LKAS resume ON)")
