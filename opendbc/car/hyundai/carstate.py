@@ -58,6 +58,7 @@ class CarState(CarStateBase):
     self.lkasEnabled = False
     self.belowLaneChangeSpeed = True
     self.cruise_info = {}
+    self.hda_icon = 0
 
     # On some cars, CLU15->CF_Clu_VehicleSpeed can oscillate faster than the dash updates. Sample at 5 Hz
     self.cluster_speed = 0
@@ -306,6 +307,11 @@ class CarState(CarStateBase):
     self.main_buttons.extend(cp.vl_all[self.cruise_btns_msg_canfd]["ADAPTIVE_CRUISE_MAIN_BTN"])
     self.lda_button = cp.vl[self.cruise_btns_msg_canfd]["LDA_BTN"]
 
+    if "LFAHDA_CLUSTER" in cp_cam.vl:
+      self.hda_icon = cp_cam.vl["LFAHDA_CLUSTER"]["HDA_ICON"]
+    else:
+      self.hda_icon = 0 # Default to 0 if message not present
+
     # enable on steering wheel button rising edge
     if self.lda_button and not prev_lda_button:
       self.lkasEnabled = not self.lkasEnabled
@@ -365,6 +371,9 @@ class CarState(CarStateBase):
       ]
 
     cam_messages = []
+    if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:
+      cam_messages.append(("LFAHDA_CLUSTER", 20))
+
     if CP.flags & HyundaiFlags.CANFD_LKA_STEERING:
       block_lfa_msg = "CAM_0x362" if CP.flags & HyundaiFlags.CANFD_LKA_STEERING_ALT else "CAM_0x2a4"
       cam_messages += [(block_lfa_msg, 20)]
