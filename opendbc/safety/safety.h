@@ -43,6 +43,7 @@ uint32_t GET_BYTES(const CANPacket_t *msg, int start, int len) {
 const int MAX_WRONG_COUNTERS = 5;
 
 // This can be set by the safety hooks
+bool disengage_from_brakes = false;
 bool controls_allowed = false;
 bool relay_malfunction = false;
 bool gas_pressed = false;
@@ -58,6 +59,7 @@ struct sample_t vehicle_speed;
 bool vehicle_moving = false;
 bool acc_main_on = false;  // referred to as "ACC off" in ISO 15622:2018
 int cruise_button_prev = 0;
+bool lkas_enabled_prev = 0;
 bool safety_rx_checks_invalid = false;
 
 // for safety modes with torque steering control
@@ -99,6 +101,7 @@ static bool is_msg_valid(RxCheck addr_list[], int index) {
   if (index != -1) {
     if (!addr_list[index].status.valid_checksum || !addr_list[index].status.valid_quality_flag || (addr_list[index].status.wrong_counters >= MAX_WRONG_COUNTERS)) {
       valid = false;
+      disengage_from_brakes = false;
       controls_allowed = false;
     }
   }
@@ -327,6 +330,7 @@ void safety_tick(const safety_config *cfg) {
       bool lagging = elapsed_time > MAX(timestep * MAX_MISSED_MSGS, 1e6);
       cfg->rx_checks[i].status.lagging = lagging;
       if (lagging) {
+        disengage_from_brakes = false;
         controls_allowed = false;
       }
 
@@ -348,19 +352,34 @@ static void generic_rx_checks(void) {
   gas_pressed_prev = gas_pressed;
 
   // exit controls on rising edge of brake press
-  if (brake_pressed && (!brake_pressed_prev || vehicle_moving)) {
-    controls_allowed = false;
+  if (brake_pressed) {
+    if ((!brake_pressed_prev || vehicle_moving)) {
+      if (controls_allowed) {
+        disengage_from_brakes = true;
+      }
+      controls_allowed = false;
+    }
+  }else {
+    if (disengage_from_brakes) {
+      disengage_from_brakes = false;
+      bool resume_lkas_after_brake = (alternative_experience & ALT_EXP_RESUME_LKAS_AFTER_BRAKE) != 0;
+      if (resume_lkas_after_brake) {
+        controls_allowed = true;
+      }
+    }
   }
   brake_pressed_prev = brake_pressed;
 
   // exit controls on rising edge of regen paddle
   if (regen_braking && (!regen_braking_prev || vehicle_moving)) {
+    disengage_from_brakes = false;
     controls_allowed = false;
   }
   regen_braking_prev = regen_braking;
 
   // exit controls on rising edge of steering override/disengage
   if (steering_disengage && !steering_disengage_prev) {
+    disengage_from_brakes = false;
     controls_allowed = false;
   }
   steering_disengage_prev = steering_disengage;
@@ -452,6 +471,7 @@ int set_safety_hooks(uint16_t mode, uint16_t param) {
   reset_sample(&angle_meas);
 
   controls_allowed = false;
+  disengage_from_brakes = false;
   relay_malfunction_reset();
   safety_rx_checks_invalid = false;
 
@@ -522,7 +542,9 @@ int ROUND(float val) {
 
 void pcm_cruise_check(bool cruise_engaged) {
   // Enter controls on rising edge of stock ACC, exit controls if stock ACC disengages
-  if (!cruise_engaged) {
+  bool split_lkas_and_acc = (alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0;
+  if (!cruise_engaged && !split_lkas_and_acc) {
+    disengage_from_brakes = false;
     controls_allowed = false;
   }
   if (cruise_engaged && !cruise_engaged_prev) {
@@ -537,6 +559,7 @@ void speed_mismatch_check(const float speed_2) {
   const float MAX_SPEED_DELTA = 2.0;  // m/s
   bool is_invalid_speed = ABS(speed_2 - ((float)vehicle_speed.values[0] / VEHICLE_SPEED_FACTOR)) > MAX_SPEED_DELTA;
   if (is_invalid_speed) {
+    disengage_from_brakes = false;
     controls_allowed = false;
   }
 }

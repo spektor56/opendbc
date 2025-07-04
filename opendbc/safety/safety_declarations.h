@@ -248,6 +248,7 @@ void speed_mismatch_check(const float speed_2);
 void safety_tick(const safety_config *safety_config);
 
 // This can be set by the safety hooks
+extern bool disengage_from_brakes;  // true if the last disengagement was from a brake press
 extern bool controls_allowed;
 extern bool relay_malfunction;
 extern bool gas_pressed;
@@ -263,6 +264,7 @@ extern struct sample_t vehicle_speed;
 extern bool vehicle_moving;
 extern bool acc_main_on; // referred to as "ACC off" in ISO 15622:2018
 extern int cruise_button_prev;
+extern bool lkas_enabled_prev;
 extern bool safety_rx_checks_invalid;
 
 // for safety modes with torque steering control
@@ -302,6 +304,14 @@ extern struct sample_t angle_meas;         // last 6 steer angles/curvatures
 
 // This flag allows AEB to be commanded from openpilot.
 #define ALT_EXP_ALLOW_AEB 16
+
+// Enable the ability to toggle LKAS and ACC independently of each other. Allows openpilot to be engaged
+// after pressing the LKAS button and doesn't block openpilot from engaging after pressing the cancel
+// button.
+#define ALT_EXP_SPLIT_LKAS_AND_ACC 32
+
+// If the previous disengagement is from a brake press, allow openpilot to engage after releasing the brake.
+#define ALT_EXP_RESUME_LKAS_AFTER_BRAKE 64
 
 extern int alternative_experience;
 
