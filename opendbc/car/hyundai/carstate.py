@@ -306,7 +306,11 @@ class CarState(CarStateBase):
     self.cruise_buttons.extend(cp.vl_all[self.cruise_btns_msg_canfd]["CRUISE_BUTTONS"])
     self.main_buttons.extend(cp.vl_all[self.cruise_btns_msg_canfd]["ADAPTIVE_CRUISE_MAIN_BTN"])
     self.lda_button = cp.vl[self.cruise_btns_msg_canfd]["LDA_BTN"]
-    self.hda_icon = cp.vl["LFAHDA_CLUSTER"]["HDA_ICON"]
+
+    if "LFAHDA_CLUSTER" in cp.vl:
+      self.hda_icon = cp.vl["LFAHDA_CLUSTER"]["HDA_ICON"]
+    else:
+      self.hda_icon = 0 # Default to 0 if message not present
 
     # enable on steering wheel button rising edge
     if self.lda_button and not prev_lda_button:
@@ -338,8 +342,13 @@ class CarState(CarStateBase):
       ("CRUISE_BUTTONS_ALT", 50),
       ("BLINKERS", 4),
       ("DOORS_SEATBELTS", 4),
-      ("LFAHDA_CLUSTER", 20),
+
     ]
+
+    if (CP.flags & HyundaiFlags.RADAR_SCC) and not (CP.flags & HyundaiFlags.CANFD_LKA_STEERING):
+      pt_messages += [
+        ("LFAHDA_CLUSTER", 20),
+      ]
 
     if CP.flags & HyundaiFlags.EV:
       pt_messages += [
