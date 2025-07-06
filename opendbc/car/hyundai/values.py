@@ -25,12 +25,20 @@ class CarControllerParams:
     self.STEER_STEP = 1  # 100 Hz
 
     if CP.flags & HyundaiFlags.CANFD:
-      self.STEER_MAX = 270
-      self.STEER_DRIVER_ALLOWANCE = 250
-      self.STEER_DRIVER_MULTIPLIER = 2
-      self.STEER_THRESHOLD = 250
-      self.STEER_DELTA_UP = 2
-      self.STEER_DELTA_DOWN = 3
+      if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:  # Specific for Carnival
+        self.STEER_MAX = 360
+        self.STEER_DELTA_UP = 3
+        self.STEER_DELTA_DOWN = 7
+        self.STEER_DRIVER_ALLOWANCE = 250  # Proportional increase
+        self.STEER_DRIVER_MULTIPLIER = 2   # Keep same as other CANFD
+        self.STEER_THRESHOLD = 250       # Proportional increase
+      else:
+        self.STEER_MAX = 270
+        self.STEER_DRIVER_ALLOWANCE = 250
+        self.STEER_DRIVER_MULTIPLIER = 2
+        self.STEER_THRESHOLD = 250
+        self.STEER_DELTA_UP = 2
+        self.STEER_DELTA_DOWN = 3
 
     # To determine the limit for your car, find the maximum value that the stock LKAS will request.
     # If the max stock LKAS request is <384, add your car to this list.
@@ -66,6 +74,7 @@ class HyundaiSafetyFlags(IntFlag):
   CANFD_LKA_STEERING_ALT = 128
   FCEV_GAS = 256
   ALT_LIMITS_2 = 512
+  CARNIVAL_STEERING_LIMITS = 1024
 
 
 class HyundaiFlags(IntFlag):
@@ -533,7 +542,7 @@ class CAR(Platforms):
       HyundaiCarDocs("Kia Carnival 2022-24", car_parts=CarParts.common([CarHarness.hyundai_a])),
       HyundaiCarDocs("Kia Carnival (China only) 2023", car_parts=CarParts.common([CarHarness.hyundai_k]))
     ],
-    CarSpecs(mass=2087, wheelbase=3.09, steerRatio=14.23),
+    CarSpecs(mass=2144, wheelbase=3.09, steerRatio=14.23),
     flags=HyundaiFlags.RADAR_SCC,
   )
 
