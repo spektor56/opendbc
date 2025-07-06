@@ -47,6 +47,7 @@
 
 static bool hyundai_canfd_alt_buttons = false;
 static bool hyundai_canfd_lka_steering_alt = false;
+static bool hyundai_canfd_carnival_steering_limits = false;
 
 static int hyundai_canfd_get_lka_addr(void) {
   return hyundai_canfd_lka_steering_alt ? 0x110 : 0x50;
@@ -99,10 +100,10 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
         lkas_enabled = GET_BIT(to_push, 39U);
       }
 
-      if ((alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0){
-          if (lkas_enabled != lkas_enabled_prev) {
-            controls_allowed = true;
-          }
+      if ((alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0) {
+        if (lkas_enabled != lkas_enabled_prev) {
+          controls_allowed = true;
+        }
       }
 
       lkas_enabled_prev = lkas_enabled;
@@ -150,23 +151,6 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
 }
 
 static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
-  const TorqueSteeringLimits HYUNDAI_CANFD_STEERING_LIMITS = {
-    .max_torque = 270,
-    .max_rt_delta = 112,
-    .max_rate_up = 2,
-    .max_rate_down = 3,
-    .driver_torque_allowance = 250,
-    .driver_torque_multiplier = 2,
-    .type = TorqueDriverLimited,
-
-    // the EPS faults when the steering angle is above a certain threshold for too long. to prevent this,
-    // we allow setting torque actuation bit to 0 while maintaining the requested torque value for two consecutive frames
-    .min_valid_request_frames = 89,
-    .max_invalid_request_frames = 2,
-    .min_valid_request_rt_interval = 810000,  // 810ms; a ~10% buffer on cutting every 90 frames
-    .has_steer_req_tolerance = true,
-  };
-
   bool tx = true;
   int addr = GET_ADDR(to_send);
 
@@ -175,8 +159,45 @@ static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
   if (addr == steer_addr) {
     int desired_torque = (((GET_BYTE(to_send, 6) & 0xFU) << 7U) | (GET_BYTE(to_send, 5) >> 1U)) - 1024U;
     bool steer_req = GET_BIT(to_send, 52U);
+    bool violation = false;
 
-    if (steer_torque_cmd_checks(desired_torque, steer_req, HYUNDAI_CANFD_STEERING_LIMITS)) {
+    if (hyundai_canfd_carnival_steering_limits) {
+      violation = steer_torque_cmd_checks(desired_torque, steer_req, (TorqueSteeringLimits){
+        .max_torque = 360,
+        .max_rt_delta = 112,
+        .max_rate_up = 3,
+        .max_rate_down = 7,
+        .driver_torque_allowance = 250,
+        .driver_torque_multiplier = 2,
+        .type = TorqueDriverLimited,
+
+        // the EPS faults when the steering angle is above a certain threshold for too long. to prevent this,
+        // we allow setting torque actuation bit to 0 while maintaining the requested torque value for two consecutive frames
+        .min_valid_request_frames = 89,
+        .max_invalid_request_frames = 2,
+        .min_valid_request_rt_interval = 810000,  // 810ms; a ~10% buffer on cutting every 90 frames
+        .has_steer_req_tolerance = true,
+      });
+    } else {
+      violation = steer_torque_cmd_checks(desired_torque, steer_req, (TorqueSteeringLimits){
+        .max_torque = 270,
+        .max_rt_delta = 112,
+        .max_rate_up = 2,
+        .max_rate_down = 3,
+        .driver_torque_allowance = 250,
+        .driver_torque_multiplier = 2,
+        .type = TorqueDriverLimited,
+
+        // the EPS faults when the steering angle is above a certain threshold for too long. to prevent this,
+        // we allow setting torque actuation bit to 0 while maintaining the requested torque value for two consecutive frames
+        .min_valid_request_frames = 89,
+        .max_invalid_request_frames = 2,
+        .min_valid_request_rt_interval = 810000,  // 810ms; a ~10% buffer on cutting every 90 frames
+        .has_steer_req_tolerance = true,
+      });
+    }
+
+    if (violation) {
       tx = false;
     }
   }
@@ -233,6 +254,7 @@ static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
 static safety_config hyundai_canfd_init(uint16_t param) {
   const int HYUNDAI_PARAM_CANFD_LKA_STEERING_ALT = 128;
   const int HYUNDAI_PARAM_CANFD_ALT_BUTTONS = 32;
+  const int HYUNDAI_PARAM_CARNIVAL_STEERING_LIMITS = 1024;
 
   static const CanMsg HYUNDAI_CANFD_LKA_STEERING_TX_MSGS[] = {
     HYUNDAI_CANFD_LKA_STEERING_COMMON_TX_MSGS(0, 1)
@@ -282,6 +304,7 @@ static safety_config hyundai_canfd_init(uint16_t param) {
   gen_crc_lookup_table_16(0x1021, hyundai_canfd_crc_lut);
   hyundai_canfd_alt_buttons = GET_FLAG(param, HYUNDAI_PARAM_CANFD_ALT_BUTTONS);
   hyundai_canfd_lka_steering_alt = GET_FLAG(param, HYUNDAI_PARAM_CANFD_LKA_STEERING_ALT);
+  hyundai_canfd_carnival_steering_limits = GET_FLAG(param, HYUNDAI_PARAM_CARNIVAL_STEERING_LIMITS);
 
   safety_config ret;
   if (hyundai_longitudinal) {
