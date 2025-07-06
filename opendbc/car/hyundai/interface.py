@@ -114,6 +114,9 @@ class CarInterface(CarInterfaceBase):
     ret.steerLimitTimer = 0.4
     CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
 
+    if candidate == CAR.KIA_CARNIVAL_4TH_GEN:
+      ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.CARNIVAL_STEERING_LIMITS.value
+
     if ret.flags & HyundaiFlags.ALT_LIMITS:
       ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.ALT_LIMITS.value
 
