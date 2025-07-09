@@ -351,7 +351,6 @@ class CarState(CarStateBase):
 
     if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:
       pt_messages += [
-        ("LFAHDA_CLUSTER", 20),
         ("IMU_01_10ms", 100),
       ]
 
