@@ -312,10 +312,10 @@ class CarState(CarStateBase):
     else:
       self.hda_icon = 0 # Default to 0 if message not present
 
-    if "IMU_01_10ms" in cp_cam.vl:
-      ret.yawRate = math.radians(cp_cam.vl["IMU_01_10ms"]["IMU_YawRtVal"])
-      ret.lateralAcceleration = cp_cam.vl["IMU_01_10ms"]["IMU_LatAccelVal"] * 9.80665  # convert from g to m/s^2
-      ret.longitudinalAcceleration = cp_cam.vl["IMU_01_10ms"]["IMU_LongAccelVal"] * 9.80665  # convert from g to m/s^2
+    if "IMU_01_10ms" in cp.vl:
+      ret.yawRate = math.radians(cp.vl["IMU_01_10ms"]["IMU_YawRtVal"])
+      ret.lateralAcceleration = cp.vl["IMU_01_10ms"]["IMU_LatAccelVal"] * 9.80665  # convert from g to m/s^2
+      ret.longitudinalAcceleration = cp.vl["IMU_01_10ms"]["IMU_LongAccelVal"] * 9.80665  # convert from g to m/s^2
 
     # enable on steering wheel button rising edge
     if self.lda_button and not prev_lda_button:
@@ -349,6 +349,12 @@ class CarState(CarStateBase):
       ("DOORS_SEATBELTS", 4),
     ]
 
+    if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:
+      pt_messages += [
+        ("LFAHDA_CLUSTER", 20),
+        ("IMU_01_10ms", 100),
+      ]
+
     if CP.flags & HyundaiFlags.EV:
       pt_messages += [
         ("ACCELERATOR", 100),
@@ -379,7 +385,6 @@ class CarState(CarStateBase):
     if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:
       cam_messages += [
         ("LFAHDA_CLUSTER", 20),
-        ("IMU_01_10ms", 100),
       ]
 
     if CP.flags & HyundaiFlags.CANFD_LKA_STEERING:
