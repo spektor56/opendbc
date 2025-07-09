@@ -1,11 +1,13 @@
 from collections import deque
 import copy
+import numpy as np
 import math
 
 from opendbc.can.parser import CANParser
 from opendbc.can.can_define import CANDefine
-from opendbc.car import Bus, create_button_events, structs
+from opendbc.car import DT_CTRL, Bus, create_button_events, structs
 from opendbc.car.common.conversions import Conversions as CV
+from opendbc.car.common.simple_kalman import KF1D, get_kalman_gain
 from opendbc.car.hyundai.hyundaicanfd import CanBus
 from opendbc.car.hyundai.values import HyundaiFlags, CAR, DBC, Buttons, CarControllerParams
 from opendbc.car.interfaces import CarStateBase
@@ -66,11 +68,66 @@ class CarState(CarStateBase):
 
     self.params = CarControllerParams(CP)
 
+    self.lat_accel_kf = None
+    self.yaw_rate_kf = None
+    self.long_accel_kf = None
+
+    if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:
+      # Kalman filters only for CAN FD cars with potential IMU data
+      A = [[1.0, DT_CTRL], [0.0, 1.0]]
+      C = [[1.0, 0.0]]
+      x0 = [[0.0], [0.0]]
+
+      # Lateral Accel Filter
+      Q_lat_accel = [[0.0, 0.0], [0.0, 10.0]]
+      R_lat_accel = 0.3
+      K_lat_accel = get_kalman_gain(DT_CTRL, np.array(A), np.array(C), np.array(Q_lat_accel), R_lat_accel)
+      self.lat_accel_kf = KF1D(x0=x0, A=A, C=C[0], K=K_lat_accel)
+
+      # Yaw Rate Filter
+      Q_yaw_rate = [[0.0, 0.0], [0.0, 5.0]]
+      R_yaw_rate = 0.1
+      K_yaw_rate = get_kalman_gain(DT_CTRL, np.array(A), np.array(C), np.array(Q_yaw_rate), R_yaw_rate)
+      self.yaw_rate_kf = KF1D(x0=x0, A=A, C=C[0], K=K_yaw_rate)
+
+      # Longitudinal Accel Filter
+      Q_long_accel = [[0.0, 0.0], [0.0, 10.0]]
+      R_long_accel = 0.3
+      K_long_accel = get_kalman_gain(DT_CTRL, np.array(A), np.array(C), np.array(Q_long_accel), R_long_accel)
+      self.long_accel_kf = KF1D(x0=x0, A=A, C=C[0], K=K_long_accel)
+
   def recent_button_interaction(self) -> bool:
     # On some newer model years, the CANCEL button acts as a pause/resume button based on the PCM state
     # To avoid re-engaging when openpilot cancels, check user engagement intention via buttons
     # Main button also can trigger an engagement on these cars
     return any(btn in ENABLE_BUTTONS for btn in self.cruise_buttons) or any(self.main_buttons)
+
+  def _update_lat_accel_kf(self, lat_accel_raw):
+    if self.lat_accel_kf is None:
+      return lat_accel_raw
+
+    if abs(lat_accel_raw - self.lat_accel_kf.x[0][0]) > 2.0:  # Reset if jump is too large
+      self.lat_accel_kf.set_x([[lat_accel_raw], [0.0]])
+
+    return float(self.lat_accel_kf.update(lat_accel_raw)[0])
+
+  def _update_yaw_rate_kf(self, yaw_rate_raw):
+    if self.yaw_rate_kf is None:
+      return yaw_rate_raw
+
+    if abs(yaw_rate_raw - self.yaw_rate_kf.x[0][0]) > 1.0:  # Reset if jump is too large
+      self.yaw_rate_kf.set_x([[yaw_rate_raw], [0.0]])
+
+    return float(self.yaw_rate_kf.update(yaw_rate_raw)[0])
+
+  def _update_long_accel_kf(self, long_accel_raw):
+    if self.long_accel_kf is None:
+      return long_accel_raw
+
+    if abs(long_accel_raw - self.long_accel_kf.x[0][0]) > 2.0:  # Reset if jump is too large
+      self.long_accel_kf.set_x([[long_accel_raw], [0.0]])
+
+    return float(self.long_accel_kf.update(long_accel_raw)[0])
 
   def update(self, can_parsers) -> structs.CarState:
     cp = can_parsers[Bus.pt]
@@ -312,6 +369,19 @@ class CarState(CarStateBase):
     else:
       self.hda_icon = 0 # Default to 0 if message not present
 
+    if "IMU_01_10ms" in cp.vl:
+      raw_yaw_rate = math.radians(cp.vl["IMU_01_10ms"]["IMU_YawRtVal"])
+      ret.rawYawRate = raw_yaw_rate
+      ret.yawRate = self._update_yaw_rate_kf(raw_yaw_rate)
+
+      raw_lat_accel = cp.vl["IMU_01_10ms"]["IMU_LatAccelVal"] * 9.80665  # convert from g to m/s^2
+      ret.rawLateralAcceleration = raw_lat_accel
+      ret.lateralAcceleration = self._update_lat_accel_kf(raw_lat_accel)
+
+      raw_long_accel = cp.vl["IMU_01_10ms"]["IMU_LongAccelVal"] * 9.80665  # convert from g to m/s^2
+      ret.rawLongitudinalAcceleration = raw_long_accel
+      ret.longitudinalAcceleration = self._update_long_accel_kf(raw_long_accel)
+
     # enable on steering wheel button rising edge
     if self.lda_button and not prev_lda_button:
       self.lkasEnabled = not self.lkasEnabled
@@ -344,6 +414,11 @@ class CarState(CarStateBase):
       ("DOORS_SEATBELTS", 4),
     ]
 
+    if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:
+      pt_messages += [
+        ("IMU_01_10ms", 100),
+      ]
+
     if CP.flags & HyundaiFlags.EV:
       pt_messages += [
         ("ACCELERATOR", 100),
@@ -372,7 +447,9 @@ class CarState(CarStateBase):
 
     cam_messages = []
     if CP.carFingerprint == CAR.KIA_CARNIVAL_4TH_GEN:
-      cam_messages.append(("LFAHDA_CLUSTER", 20))
+      cam_messages += [
+        ("LFAHDA_CLUSTER", 20),
+      ]
 
     if CP.flags & HyundaiFlags.CANFD_LKA_STEERING:
       block_lfa_msg = "CAM_0x362" if CP.flags & HyundaiFlags.CANFD_LKA_STEERING_ALT else "CAM_0x2a4"

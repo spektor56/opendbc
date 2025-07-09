@@ -182,6 +182,13 @@ struct CarState {
   standstill @18 :Bool;
   wheelSpeeds @2 :WheelSpeeds;
 
+  lateralAcceleration @68 :Float32;  # best estimate of lateral acceleration
+  longitudinalAcceleration @69 :Float32;  # best estimate of longitudinal acceleration
+
+  rawLateralAcceleration @70 :Float32;  # best estimate of lateral acceleration
+  rawLongitudinalAcceleration @71 :Float32;  # best estimate of longitudinal acceleration
+  rawYawRate @72 :Float32;     # best estimate of yaw rate
+
   # gas pedal, 0.0-1.0
   gas @3 :Float32;        # this is user pedal only
   gasPressed @4 :Bool;    # this is user pedal only
