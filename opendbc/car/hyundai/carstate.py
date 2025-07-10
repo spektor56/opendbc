@@ -1,5 +1,6 @@
 from collections import deque
 import copy
+import numpy as np
 import math
 
 from opendbc.can.parser import CANParser
