@@ -106,7 +106,7 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
           if (lkas_enabled) {
             controls_allowed = true;
           } else {
-            if(!cruise_engaged_prev) {
+            if (!cruise_engaged_prev) {
               controls_allowed = false;
             }
           }
