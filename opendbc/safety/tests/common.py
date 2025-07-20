@@ -1129,8 +1129,10 @@ class PandaCarSafetyTest(PandaSafetyTest):
     # Test the alternative_experience flag ALT_EXP_RESUME_LKAS_AFTER_BRAKE
 
     # Scenario 1: LKAS resume OFF
+    self.safety.set_gear_park(False)
     self.safety.set_alternative_experience(0)
     self.safety.set_controls_allowed(True) # Start with controls allowed
+    self.safety.set_lkas_enabled(True)
     self.safety.set_brake_pressed_prev(False) # Ensure brake_pressed_prev is false
 
     self._rx(self._user_brake_msg(True))
@@ -1146,6 +1148,5 @@ class PandaCarSafetyTest(PandaSafetyTest):
 
     self._rx(self._user_brake_msg(True))
     self.assertFalse(self.safety.get_controls_allowed(), "Controls should be disallowed after brake press")
-
     self._rx(self._user_brake_msg(False))
     self.assertTrue(self.safety.get_controls_allowed(), "Controls should be allowed (LKAS resume ON)")

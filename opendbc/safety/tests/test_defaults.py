@@ -67,6 +67,7 @@ class TestAllOutput(TestDefaultRxHookBase):
     # Scenario 1: LKAS resume OFF
     self.safety.set_alternative_experience(0)
     self.safety.set_controls_allowed(True)
+    self.safety.set_lkas_enabled(True)
     self.safety.set_brake_pressed_prev(False)
     self.safety.set_brake_pressed(True)
 
@@ -91,6 +92,7 @@ class TestAllOutput(TestDefaultRxHookBase):
 
     self._rx(common.make_msg(0, 0, 8))
     self.assertTrue(self.safety.get_controls_allowed(), "Controls should be allowed (LKAS resume ON)")
+
 
 class TestAllOutputPassthrough(TestAllOutput):
   FWD_BLACKLISTED_ADDRS = {}
