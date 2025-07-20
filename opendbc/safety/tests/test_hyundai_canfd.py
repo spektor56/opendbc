@@ -2,12 +2,14 @@
 from parameterized import parameterized_class
 import unittest
 
+from enum import Enum
 from opendbc.car.hyundai.values import HyundaiSafetyFlags
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerPanda
 from opendbc.safety.tests.hyundai_common import HyundaiButtonBase, HyundaiLongitudinalBase
+from opendbc.safety import ALTERNATIVE_EXPERIENCE
 
 # All combinations of radar/camera-SCC and gas/hybrid/EV cars
 ALL_GAS_EV_HYBRID_COMBOS = [
@@ -20,6 +22,13 @@ ALL_GAS_EV_HYBRID_COMBOS = [
   {"GAS_MSG": ("ACCELERATOR", "ACCELERATOR_PEDAL"), "SCC_BUS": 2, "SAFETY_PARAM": HyundaiSafetyFlags.EV_GAS | HyundaiSafetyFlags.CAMERA_SCC},
   {"GAS_MSG": ("ACCELERATOR_ALT", "ACCELERATOR_PEDAL"), "SCC_BUS": 2, "SAFETY_PARAM": HyundaiSafetyFlags.HYBRID_GAS | HyundaiSafetyFlags.CAMERA_SCC},
 ]
+
+
+class GEAR_SHIFTER(Enum):
+  DRIVE = 5
+  NEUTRAL = 6
+  REVERSE = 7
+  PARK = 0
 
 
 class TestHyundaiCanfdBase(HyundaiButtonBase, common.PandaCarSafetyTest, common.DriverTorqueSteeringSafetyTest, common.SteerRequestCutSafetyTest):
@@ -72,12 +81,13 @@ class TestHyundaiCanfdBase(HyundaiButtonBase, common.PandaCarSafetyTest, common.
     values = {"ACCMode": 1 if enable else 0}
     return self.packer.make_can_msg_panda("SCC_CONTROL", self.SCC_BUS, values)
 
-  def _button_msg(self, buttons, main_button=0, bus=None):
+  def _button_msg(self, buttons, main_button=0, lda_button=0, bus=None):
     if bus is None:
       bus = self.PT_BUS
     values = {
       "CRUISE_BUTTONS": buttons,
       "ADAPTIVE_CRUISE_MAIN_BTN": main_button,
+      "LDA_BTN": lda_button,  # LFA button
     }
     return self.packer.make_can_msg_panda("CRUISE_BUTTONS", bus, values)
 
@@ -122,10 +132,11 @@ class TestHyundaiCanfdLFASteeringAltButtonsBase(TestHyundaiCanfdLFASteeringBase)
     self.safety.set_safety_hooks(CarParams.SafetyModel.hyundaiCanfd, HyundaiSafetyFlags.CANFD_ALT_BUTTONS | self.SAFETY_PARAM)
     self.safety.init_tests()
 
-  def _button_msg(self, buttons, main_button=0, bus=1):
+  def _button_msg(self, buttons, main_button=0, lda_button=0, bus=1):
     values = {
       "CRUISE_BUTTONS": buttons,
       "ADAPTIVE_CRUISE_MAIN_BTN": main_button,
+      "LDA_BTN": lda_button,  # LFA button
     }
     return self.packer.make_can_msg_panda("CRUISE_BUTTONS_ALT", self.PT_BUS, values)
 
@@ -278,6 +289,242 @@ class TestHyundaiCanfdLFASteeringLongAltButtons(TestHyundaiCanfdLFASteeringLongB
     self.safety = libsafety_py.libsafety
     self.safety.set_safety_hooks(CarParams.SafetyModel.hyundaiCanfd, HyundaiSafetyFlags.LONG | HyundaiSafetyFlags.CANFD_ALT_BUTTONS | self.SAFETY_PARAM)
     self.safety.init_tests()
+
+  def test_acc_cancel(self):
+    # Alt buttons does not use SCC_CONTROL to cancel if longitudinal
+    pass
+
+
+class TestHyundaiCanfdCarnivalBase(TestHyundaiCanfdLFASteeringAltButtonsBase):
+  MAX_TORQUE_LOOKUP = [0], [360]
+  MAX_RATE_UP = 3
+  MAX_RATE_DOWN = 7
+  DRIVER_TORQUE_ALLOWANCE = 250
+  DRIVER_TORQUE_FACTOR = 2
+
+  GAS_MSG = ("ACCELERATOR_BRAKE_ALT", "ACCELERATOR_PEDAL_PRESSED")
+  SCC_BUS = 0
+  SAFETY_PARAM = HyundaiSafetyFlags.CARNIVAL_STEERING_LIMITS | HyundaiSafetyFlags.CANFD_ALT_BUTTONS
+
+  def setUp(self):
+    self.packer = CANPackerPanda("hyundai_canfd_generated")
+    self.safety = libsafety_py.libsafety
+    self.safety.set_safety_hooks(CarParams.SafetyModel.hyundaiCanfd, self.SAFETY_PARAM)
+    self.safety.init_tests()
+
+  def _gear_msg(self, gear: GEAR_SHIFTER):
+    values = {"GEAR": gear.value}
+    return self.packer.make_can_msg_panda("GEAR_ALT", self.PT_BUS, values)
+
+  def _lfahda_cluster(self, lfa_icon):
+    values = {"LFA_ICON": lfa_icon}
+    return self.packer.make_can_msg_panda("LFAHDA_CLUSTER", self.PT_BUS, values)
+
+  def test_lkas_state_sync(self):
+    # Scenario 1: Sync enable
+    self.safety.init_tests()
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.SPLIT_LKAS_AND_ACC)
+    self.safety.set_controls_allowed(False)
+    self.safety.set_lkas_enabled(False)
+
+    self._rx(self._gear_msg(GEAR_SHIFTER.DRIVE)) # Set gear to D
+
+    self.assertFalse(self.safety.get_lkas_enabled_synced())
+    self._tx(self._lfahda_cluster(1))
+    self.assertTrue(self.safety.get_lkas_enabled_synced())
+
+    self.assertTrue(self.safety.get_lkas_enabled())
+    self.assertTrue(self.safety.get_controls_allowed())
+
+    # Scenario 2: Sync disable
+    self.safety.init_tests()
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.SPLIT_LKAS_AND_ACC)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_controls_allowed(True)
+    self.safety.set_lkas_enabled(True)
+
+    self.assertFalse(self.safety.get_lkas_enabled_synced())
+    self._tx(self._lfahda_cluster(0))
+    self.assertTrue(self.safety.get_lkas_enabled_synced())
+
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self.assertFalse(self.safety.get_controls_allowed())
+
+  def test_lkas_button(self):
+
+    self.safety.set_controls_allowed(False)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_lkas_enabled(False)
+    self._rx(self._gear_msg(GEAR_SHIFTER.DRIVE)) # Set gear to D
+    self.assertFalse(self.safety.get_gear_park())
+
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    # Scenario 1: LKAS resume OFF
+    self._rx(self._button_msg(0,0,0))
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self._rx(self._button_msg(0,0,1))
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    # Scenario 2: LKAS resume ON
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.SPLIT_LKAS_AND_ACC)
+
+    # Enable with CC off
+    self._rx(self._button_msg(0,0,0))
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self._rx(self._button_msg(0,0,1))
+    self.assertTrue(self.safety.get_lkas_enabled())
+    self.assertTrue(self.safety.get_controls_allowed())
+
+    # Disable with CC off
+    self._rx(self._button_msg(0,0,0))
+    self.assertTrue(self.safety.get_lkas_enabled())
+    self._rx(self._button_msg(0,0,1))
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    self.safety.set_cruise_engaged_prev(True)
+
+    # Enable with CC on
+    self._rx(self._button_msg(0,0,0))
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self._rx(self._button_msg(0,0,1))
+    self.assertTrue(self.safety.get_lkas_enabled())
+    self.assertTrue(self.safety.get_controls_allowed())
+
+    # Disable with CC on
+    self._rx(self._button_msg(0,0,0))
+    self.assertTrue(self.safety.get_lkas_enabled())
+    self._rx(self._button_msg(0,0,1))
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self.assertTrue(self.safety.get_controls_allowed())
+
+    # Enable while in park
+    self.safety.set_controls_allowed(False)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_lkas_enabled(False)
+
+    self._rx(self._gear_msg(GEAR_SHIFTER.PARK)) # Set gear to P
+    self.assertTrue(self.safety.get_gear_park())
+    self._rx(self._button_msg(0,0,0))
+    self._rx(self._button_msg(0,0,1))
+
+    self.assertFalse(self.safety.get_controls_allowed())
+
+  def test_split_lkas_and_acc_alt_exp(self):
+    # Test that the split lkas and acc alternative experience flag is working
+    # 1. With ALT_EXP_SPLIT_LKAS_AND_ACC, lkas_enabled_synced should be true after syncing
+    self.safety.init_tests()
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.SPLIT_LKAS_AND_ACC)
+    self.safety.set_controls_allowed(False)
+    self.safety.set_lkas_enabled(False)
+    self._rx(self._gear_msg(GEAR_SHIFTER.DRIVE))
+    self.assertFalse(self.safety.get_lkas_enabled_synced())
+    self._tx(self._lfahda_cluster(1))
+    self.assertTrue(self.safety.get_lkas_enabled_synced())
+
+    # 2. Without ALT_EXP_SPLIT_LKAS_AND_ACC, lkas_enabled_synced should be false
+    self.safety.init_tests()
+    self.safety.set_alternative_experience(0)
+    self.safety.set_controls_allowed(False)
+    self.safety.set_lkas_enabled(False)
+    self._rx(self._gear_msg(GEAR_SHIFTER.DRIVE))
+    self.assertFalse(self.safety.get_lkas_enabled_synced())
+    self._tx(self._lfahda_cluster(1))
+    self.assertFalse(self.safety.get_lkas_enabled_synced())
+
+    # 3. With a different alternative experience, lkas_enabled_synced should be false
+    self.safety.init_tests()
+    self.safety.set_alternative_experience(1)  # ALT_EXP_DISABLE_STOCK_AEB
+    self.safety.set_controls_allowed(False)
+    self.safety.set_lkas_enabled(False)
+    self._rx(self._gear_msg(GEAR_SHIFTER.DRIVE))
+    self.assertFalse(self.safety.get_lkas_enabled_synced())
+    self._tx(self._lfahda_cluster(1))
+    self.assertFalse(self.safety.get_lkas_enabled_synced())
+
+
+class TestHyundaiCanfdCarnival(TestHyundaiCanfdCarnivalBase):
+  SAFETY_PARAM = HyundaiSafetyFlags.CARNIVAL_STEERING_LIMITS | HyundaiSafetyFlags.CANFD_ALT_BUTTONS
+
+  def test_split_lkas_and_acc_alt_exp(self):
+    # Test that the split lkas and acc alternative experience flag is working
+    # 1. With ALT_EXP_SPLIT_LKAS_AND_ACC, cruise engaged should be controlled by main button
+    self.safety.init_tests()
+    self.safety.set_controls_allowed(False)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.SPLIT_LKAS_AND_ACC)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(1, main_button=1))
+    self._rx(self._pcm_status_msg(True)) # main button
+    self.assertTrue(self.safety.get_cruise_engaged_prev())
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(0,0,1)) # lda button
+    self.assertTrue(self.safety.get_lkas_enabled())
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._pcm_status_msg(False)) # main button
+    self.assertTrue(self.safety.get_controls_allowed())
+
+    # 2. Without ALT_EXP_SPLIT_LKAS_AND_ACC, cruise engaged should be controlled by pcm
+    self.safety.init_tests()
+    self.safety.set_controls_allowed(False)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_alternative_experience(0)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(1, main_button=1))
+    self._rx(self._pcm_status_msg(True)) # main button
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(0,0,1)) # lda button
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._pcm_status_msg(False)) # main button
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    # 2. Without ALT_EXP_SPLIT_LKAS_AND_ACC, cruise engaged should be controlled by pcm
+    self.safety.init_tests()
+    self.safety.set_controls_allowed(False)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_alternative_experience(0)
+    self.safety.set_lkas_enabled(True)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(1, main_button=1))
+    self._rx(self._pcm_status_msg(True)) # main button
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._pcm_status_msg(False)) # main button
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    self.safety.init_tests()
+    self.safety.set_controls_allowed(False)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_alternative_experience(0)
+    self.safety.set_lkas_enabled(False)
+    self.assertFalse(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(1, main_button=1))
+    self._rx(self._pcm_status_msg(True)) # main button
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._pcm_status_msg(False)) # main button
+    self.assertFalse(self.safety.get_controls_allowed())
+
+    # 3. With a different alternative experience, cruise engaged should be controlled by pcm
+    self.safety.init_tests()
+    self.safety.set_controls_allowed(False)
+    self.safety.set_cruise_engaged_prev(False)
+    self.safety.set_alternative_experience(1) # ALT_EXP_DISABLE_STOCK_AEB
+    self.assertFalse(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(1, main_button=1))
+    self._rx(self._pcm_status_msg(True)) # main button
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._button_msg(0,0,1)) # lda button
+    self.assertFalse(self.safety.get_lkas_enabled())
+    self.assertTrue(self.safety.get_controls_allowed())
+    self._rx(self._pcm_status_msg(False)) # main button
+    self.assertFalse(self.safety.get_controls_allowed())
+
+
+class TestHyundaiCanfdCarnivalLong(TestHyundaiCanfdLFASteeringLongBase, TestHyundaiCanfdCarnivalBase):
+  SAFETY_PARAM = HyundaiSafetyFlags.CARNIVAL_STEERING_LIMITS | HyundaiSafetyFlags.LONG | HyundaiSafetyFlags.CANFD_ALT_BUTTONS
 
   def test_acc_cancel(self):
     # Alt buttons does not use SCC_CONTROL to cancel if longitudinal

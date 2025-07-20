@@ -69,6 +69,18 @@ void set_brake_pressed_prev(bool c){
   brake_pressed_prev = c;
 }
 
+bool get_lkas_enabled(void){
+  return lkas_enabled;
+}
+
+void set_lkas_enabled(bool c){
+  lkas_enabled = c;
+}
+
+bool get_lkas_enabled_synced(void){
+  return lkas_enabled_synced;
+}
+
 bool get_regen_braking_prev(void){
   return regen_braking_prev;
 }
@@ -79,6 +91,14 @@ bool get_steering_disengage_prev(void){
 
 bool get_cruise_engaged_prev(void){
   return cruise_engaged_prev;
+}
+
+bool get_gear_park(void){
+  return gear_park;
+}
+
+void set_gear_park(bool c){
+  gear_park = c;
 }
 
 void set_cruise_engaged_prev(bool engaged){
@@ -202,6 +222,9 @@ void init_tests(void){
   ts_steer_req_mismatch_last = 0;
   valid_steer_req_count = 0;
   invalid_steer_req_count = 0;
+  lkas_enabled_synced = false;  // reset lkas_enabled_synced to false for tests
+  gear_park = false;  // reset gear_park to false for tests
+  lkas_enabled = false;  // reset lkas_enabled to false for tests
 
   // assumes autopark on safety mode init to avoid a fault. get rid of that for testing
   tesla_autopark = false;
