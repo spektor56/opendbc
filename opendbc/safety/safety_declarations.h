@@ -248,7 +248,6 @@ void speed_mismatch_check(const float speed_2);
 void safety_tick(const safety_config *safety_config);
 
 // This can be set by the safety hooks
-extern bool disengage_from_brakes;  // true if the last disengagement was from a brake press
 extern bool controls_allowed;
 extern bool relay_malfunction;
 extern bool gas_pressed;
@@ -264,7 +263,9 @@ extern struct sample_t vehicle_speed;
 extern bool vehicle_moving;
 extern bool acc_main_on; // referred to as "ACC off" in ISO 15622:2018
 extern int cruise_button_prev;
-extern bool lkas_enabled_prev;
+extern bool lkas_button_prev;
+extern bool lkas_enabled;
+extern bool gear_park;
 extern bool safety_rx_checks_invalid;
 
 // for safety modes with torque steering control
