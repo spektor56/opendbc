@@ -77,14 +77,6 @@ void set_lkas_enabled(bool c){
   lkas_enabled = c;
 }
 
-bool get_lkas_enabled_prev(void){
-  return lkas_enabled_prev;
-}
-
-void set_lkas_enabled_prev(bool c){
-  lkas_enabled_prev = c;
-}
-
 bool get_regen_braking_prev(void){
   return regen_braking_prev;
 }
