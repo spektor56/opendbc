@@ -41,6 +41,10 @@
   HYUNDAI_CANFD_COMMON_RX_CHECKS(pt_bus)                                                                                                         \
   {.msg = {{0x1aa, (pt_bus), 16, .ignore_checksum = true, .max_counter = 0xffU, .ignore_quality_flag = true, .frequency = 50U}, { 0 }, { 0 }}},  \
 
+#define HYUNDAI_CANFD_CARNIVAL_RX_CHECKS(pt_bus)                                                                                                 \
+  HYUNDAI_CANFD_ALT_BUTTONS_RX_CHECKS(pt_bus)                                                                                                    \
+  {.msg = {{0x40, (pt_bus), 32, .max_counter = 0xffU, .ignore_quality_flag = true, .frequency = 100U}, { 0 }, { 0 }}},                           \
+
 // SCC_CONTROL (from ADAS unit or camera)
 #define HYUNDAI_CANFD_SCC_ADDR_CHECK(scc_bus)                                                                            \
   {.msg = {{0x1a0, (scc_bus), 32, .max_counter = 0xffU, .ignore_quality_flag = true, .frequency = 50U}, { 0 }, { 0 }}},  \
@@ -87,26 +91,36 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
     const int button_addr = hyundai_canfd_alt_buttons ? 0x1aa : 0x1cf;
     if (addr == button_addr) {
       bool main_button = false;
-      bool lkas_enabled = false;
+      bool lkas_button = false;
       int cruise_button = 0;
 
       if (addr == 0x1cf) {
         cruise_button = GET_BYTE(to_push, 2) & 0x7U;
         main_button = GET_BIT(to_push, 19U);
-        lkas_enabled = GET_BIT(to_push, 23U);
+        lkas_button = GET_BIT(to_push, 23U);
       } else {
         cruise_button = (GET_BYTE(to_push, 4) >> 4) & 0x7U;
         main_button = GET_BIT(to_push, 34U);
-        lkas_enabled = GET_BIT(to_push, 39U);
+        lkas_button = GET_BIT(to_push, 39U);
       }
 
       if ((alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0) {
-        if (lkas_enabled != lkas_enabled_prev) {
-          controls_allowed = true;
+        if (lkas_button && !lkas_button_prev) {
+          lkas_enabled = !lkas_enabled;
+          if (lkas_enabled) {
+            if (!gear_park && !brake_pressed)
+            {
+              controls_allowed = true;
+            }
+          } else {
+            if (!cruise_engaged_prev) {
+              controls_allowed = false;
+            }
+          }
         }
       }
 
-      lkas_enabled_prev = lkas_enabled;
+      lkas_button_prev = lkas_button;
       hyundai_common_cruise_buttons_check(cruise_button, main_button);
     }
 
@@ -123,6 +137,11 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
     // brake press
     if (addr == 0x175) {
       brake_pressed = GET_BIT(to_push, 81U);
+    }
+
+    // gear park
+    if (addr == 0x40) {
+      gear_park = ((GET_BYTE(to_push, 4) & 0x7U) == 0U);
     }
 
     // vehicle moving
@@ -199,6 +218,28 @@ static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
 
     if (violation) {
       tx = false;
+    }
+  }
+
+  // LFAHDA_CLUSTER: sync LFA icon from carstate with lkas_enabled
+  if ((alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0) {
+    static bool lkas_enabled_synced = false;
+    if ((addr == 0x1e0) && !lkas_enabled_synced) {
+      lkas_enabled_synced = true;
+      bool carstate_lkas_enabled = (GET_BYTES(to_send, 5, 2) & 0x3U) != 0x0U;
+      if (carstate_lkas_enabled != lkas_enabled) {
+        lkas_enabled = carstate_lkas_enabled;
+        if (lkas_enabled) {
+          if (!gear_park && !brake_pressed)
+          {
+            controls_allowed = true;
+          }
+        } else {
+          if (!cruise_engaged_prev) {
+            controls_allowed = false;
+          }
+        }
+      }
     }
   }
 
@@ -325,11 +366,17 @@ static safety_config hyundai_canfd_init(uint16_t param) {
         HYUNDAI_CANFD_ALT_BUTTONS_RX_CHECKS(0)
       };
 
+      static RxCheck hyundai_canfd_carnival_rx_checks[] = {
+        HYUNDAI_CANFD_CARNIVAL_RX_CHECKS(0)
+      };
+
       static CanMsg hyundai_canfd_lfa_steering_camera_scc_tx_msgs[] = {
         HYUNDAI_CANFD_LFA_STEERING_CAMERA_SCC_TX_MSGS(true)
       };
 
-      if (hyundai_canfd_alt_buttons) {
+      if (hyundai_canfd_carnival_steering_limits) {
+        SET_RX_CHECKS(hyundai_canfd_carnival_rx_checks, ret);
+      } else if (hyundai_canfd_alt_buttons) {
         SET_RX_CHECKS(hyundai_canfd_alt_buttons_long_rx_checks, ret);
       } else {
         SET_RX_CHECKS(hyundai_canfd_long_rx_checks, ret);
@@ -371,9 +418,16 @@ static safety_config hyundai_canfd_init(uint16_t param) {
         HYUNDAI_CANFD_SCC_ADDR_CHECK(0)
       };
 
+      static RxCheck hyundai_canfd_carnival_rx_checks[] = {
+        HYUNDAI_CANFD_CARNIVAL_RX_CHECKS(0)
+        HYUNDAI_CANFD_SCC_ADDR_CHECK(0)
+      };
+
       SET_TX_MSGS(HYUNDAI_CANFD_LFA_STEERING_TX_MSGS, ret);
 
-      if (hyundai_canfd_alt_buttons) {
+      if (hyundai_canfd_carnival_steering_limits) {
+        SET_RX_CHECKS(hyundai_canfd_carnival_rx_checks, ret);
+      } else if (hyundai_canfd_alt_buttons) {
         SET_RX_CHECKS(hyundai_canfd_alt_buttons_radar_scc_rx_checks, ret);
       } else {
         SET_RX_CHECKS(hyundai_canfd_radar_scc_rx_checks, ret);
