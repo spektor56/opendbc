@@ -67,6 +67,7 @@ class TestAllOutput(TestDefaultRxHookBase):
     # Scenario 1: LKAS resume OFF
     self.safety.set_alternative_experience(0)
     self.safety.set_controls_allowed(True)
+    self.safety.set_lkas_enabled(True)
     self.safety.set_brake_pressed_prev(False)
     self.safety.set_brake_pressed(True)
 

@@ -69,6 +69,14 @@ void set_brake_pressed_prev(bool c){
   brake_pressed_prev = c;
 }
 
+bool get_lkas_enabled(void){
+  return lkas_enabled;
+}
+
+void set_lkas_enabled(bool c){
+  lkas_enabled = c;
+}
+
 bool get_regen_braking_prev(void){
   return regen_braking_prev;
 }
