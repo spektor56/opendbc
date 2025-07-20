@@ -72,12 +72,13 @@ class TestHyundaiCanfdBase(HyundaiButtonBase, common.PandaCarSafetyTest, common.
     values = {"ACCMode": 1 if enable else 0}
     return self.packer.make_can_msg_panda("SCC_CONTROL", self.SCC_BUS, values)
 
-  def _button_msg(self, buttons, main_button=0, bus=None):
+  def _button_msg(self, buttons, main_button=0, lda_button=0, bus=None):
     if bus is None:
       bus = self.PT_BUS
     values = {
       "CRUISE_BUTTONS": buttons,
       "ADAPTIVE_CRUISE_MAIN_BTN": main_button,
+      "LDA_BTN": lda_button,  # LFA button
     }
     return self.packer.make_can_msg_panda("CRUISE_BUTTONS", bus, values)
 
