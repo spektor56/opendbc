@@ -87,26 +87,33 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
     const int button_addr = hyundai_canfd_alt_buttons ? 0x1aa : 0x1cf;
     if (addr == button_addr) {
       bool main_button = false;
-      bool lkas_enabled = false;
+      bool lkas_button = false;
       int cruise_button = 0;
 
       if (addr == 0x1cf) {
         cruise_button = GET_BYTE(to_push, 2) & 0x7U;
         main_button = GET_BIT(to_push, 19U);
-        lkas_enabled = GET_BIT(to_push, 23U);
+        lkas_button = GET_BIT(to_push, 23U);
       } else {
         cruise_button = (GET_BYTE(to_push, 4) >> 4) & 0x7U;
         main_button = GET_BIT(to_push, 34U);
-        lkas_enabled = GET_BIT(to_push, 39U);
+        lkas_button = GET_BIT(to_push, 39U);
       }
 
       if ((alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0) {
-        if (lkas_enabled != lkas_enabled_prev) {
-          controls_allowed = true;
+        if (lkas_button && !lkas_button_prev) {
+          lkas_enabled = !lkas_enabled;
+          if (lkas_enabled) {
+            controls_allowed = true;
+          } else {
+            if(!cruise_engaged_prev) {
+              controls_allowed = false;
+            }
+          }
         }
       }
 
-      lkas_enabled_prev = lkas_enabled;
+      lkas_button_prev = lkas_button;
       hyundai_common_cruise_buttons_check(cruise_button, main_button);
     }
 

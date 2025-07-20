@@ -83,7 +83,6 @@ void hyundai_common_cruise_state_check(const bool cruise_engaged) {
 
     bool split_lkas_and_acc = (alternative_experience & ALT_EXP_SPLIT_LKAS_AND_ACC) != 0;
     if (!cruise_engaged && !split_lkas_and_acc) {
-      disengage_from_brakes = false;
       controls_allowed = false;
     }
     cruise_engaged_prev = cruise_engaged;
@@ -107,7 +106,6 @@ void hyundai_common_cruise_buttons_check(const int cruise_button, const bool mai
 
     // exit controls on cancel press
     if (cruise_button == HYUNDAI_BTN_CANCEL) {
-      disengage_from_brakes = false;
       controls_allowed = false;
     }
 
