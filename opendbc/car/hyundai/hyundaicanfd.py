@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-from opendbc.car import CanBusBase
+from opendbc.car import CanBusBase, DT_CTRL
 from opendbc.car.crc import CRC16_XMODEM
 from opendbc.car.hyundai.values import HyundaiFlags
 
@@ -121,11 +121,28 @@ def create_acc_cancel(packer, CP, CAN, cruise_info_copy):
   })
   return packer.make_can_msg("SCC_CONTROL", CAN.ECAN, values)
 
+INVALID_FRAME = -1 / DT_CTRL
+lfa_icon_last = 0
+lfa_icon_frame = INVALID_FRAME
 
-def create_lfahda_cluster(packer, CAN, enabled, lkasEnabled, latActive, hda_icon=0):
+def create_lfahda_cluster(packer, CAN, enabled, lkasEnabled, latActive, hda_icon, frame):
+  global lfa_icon_last, lfa_icon_frame
+
+  lfa_icon = 2 if (enabled and latActive) else (1 if lkasEnabled else 0)
+
+  if lfa_icon_last == 2 and lfa_icon == 1:
+    lfa_icon_frame = frame
+  elif lfa_icon != 1:
+    lfa_icon_frame = INVALID_FRAME
+
+  show_disable_animation = (frame - lfa_icon_frame) * DT_CTRL < 1.0
+  output_lfa_icon = 3 if show_disable_animation else lfa_icon
+
+  lfa_icon_last = lfa_icon
+
   values = {
     "HDA_ICON": hda_icon,
-    "LFA_ICON": 2 if enabled and latActive else 1 if lkasEnabled else 0,
+    "LFA_ICON": output_lfa_icon,
   }
   return packer.make_can_msg("LFAHDA_CLUSTER", CAN.ECAN, values)
 
