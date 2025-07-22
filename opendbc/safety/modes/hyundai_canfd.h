@@ -48,7 +48,6 @@
 static bool hyundai_canfd_alt_buttons = false;
 static bool hyundai_canfd_lka_steering_alt = false;
 static bool hyundai_canfd_carnival_steering_limits = false;
-
 static int hyundai_canfd_get_lka_addr(void) {
   return hyundai_canfd_lka_steering_alt ? 0x110 : 0x50;
 }
@@ -155,6 +154,14 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
       hyundai_common_cruise_state_check(cruise_engaged);
     }
   }
+
+  if (addr == 0x1E0) {
+    if (lkas_enabled) {
+      alternative_experience |= ALT_EXP_LFA_ICON;
+    } else {
+      alternative_experience &= ~ALT_EXP_LFA_ICON;
+    }
+  }
 }
 
 static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
@@ -208,6 +215,7 @@ static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
       tx = false;
     }
   }
+
 
   // cruise buttons check
   if (addr == 0x1cf) {

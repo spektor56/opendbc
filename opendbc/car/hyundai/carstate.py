@@ -255,7 +255,9 @@ class CarState(CarStateBase):
       self.lda_button = cp.vl["BCM_PO_11"]["LDA_BTN"]
 
     # enable on steering wheel button rising edge
-    if self.lda_button and not prev_lda_button:
+    if self.CP.alternativeExperience & 128:
+      self.lkasEnabled = True
+    elif self.lda_button and not prev_lda_button:
       self.lkasEnabled = not self.lkasEnabled
 
     ret.lkasEnabled = self.lkasEnabled
@@ -383,7 +385,9 @@ class CarState(CarStateBase):
       ret.longitudinalAcceleration = self._update_long_accel_kf(raw_long_accel)
 
     # enable on steering wheel button rising edge
-    if self.lda_button and not prev_lda_button:
+    if self.CP.alternativeExperience & 128:
+      self.lkasEnabled = True
+    elif self.lda_button and not prev_lda_button:
       self.lkasEnabled = not self.lkasEnabled
 
     ret.lkasEnabled = self.lkasEnabled

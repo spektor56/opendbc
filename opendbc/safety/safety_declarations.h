@@ -313,6 +313,8 @@ extern struct sample_t angle_meas;         // last 6 steer angles/curvatures
 // If the previous disengagement is from a brake press, allow openpilot to engage after releasing the brake.
 #define ALT_EXP_RESUME_LKAS_AFTER_BRAKE 64
 
+#define ALT_EXP_LFA_ICON 128
+
 extern int alternative_experience;
 
 // time since safety mode has been changed
