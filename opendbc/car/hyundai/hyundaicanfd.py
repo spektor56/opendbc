@@ -116,8 +116,9 @@ def create_acc_cancel(packer, CP, CAN, cruise_info_copy):
   })
   return packer.make_can_msg("SCC_CONTROL", CAN.ECAN, values)
 
+INVALID_FRAME = -1 / DT_CTRL
 lfa_icon_last = 0
-lfa_icon_frame = -1
+lfa_icon_frame = INVALID_FRAME
 
 def create_lfahda_cluster(packer, CAN, enabled, lkasEnabled, latActive, hda_icon, frame):
   global lfa_icon_last, lfa_icon_frame
@@ -127,9 +128,10 @@ def create_lfahda_cluster(packer, CAN, enabled, lkasEnabled, latActive, hda_icon
   if lfa_icon_last == 2 and lfa_icon == 1:
     lfa_icon_frame = frame
   elif lfa_icon != 1:
-    lfa_icon_frame = -1
+    lfa_icon_frame = INVALID_FRAME
 
-  output_lfa_icon = 3 if (frame - lfa_icon_frame) * DT_CTRL < 1.0 else lfa_icon
+  show_disable_animation = (frame - lfa_icon_frame) * DT_CTRL < 1.0
+  output_lfa_icon = 3 if show_disable_animation else lfa_icon
 
   lfa_icon_last = lfa_icon
 
