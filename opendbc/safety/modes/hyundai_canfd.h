@@ -108,7 +108,8 @@ static void hyundai_canfd_rx_hook(const CANPacket_t *to_push) {
         if (lkas_button && !lkas_button_prev) {
           lkas_enabled = !lkas_enabled;
           if (lkas_enabled) {
-            if (!gear_park && !brake_pressed)
+            // not checking brake_pressed because of preEnable state = ENABLED
+            if (!gear_park)
             {
               controls_allowed = true;
             }
@@ -230,7 +231,8 @@ static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
       if (carstate_lkas_enabled != lkas_enabled) {
         lkas_enabled = carstate_lkas_enabled;
         if (lkas_enabled) {
-          if (!gear_park && !brake_pressed)
+          // not checking brake_pressed because of preEnable state = ENABLED
+          if (!gear_park)
           {
             controls_allowed = true;
           }
