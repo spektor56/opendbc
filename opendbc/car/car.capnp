@@ -420,6 +420,8 @@ struct CarControl {
     visualAlert @4: VisualAlert;
     rightLaneVisible @6: Bool;
     leftLaneVisible @7: Bool;
+    rightLaneProb @11: Float32;  # 0.0-1.0, probability of right lane being present
+    leftLaneProb @12: Float32;  # 0.0-1.0, probability of left lane being present
     rightLaneDepart @8: Bool;
     leftLaneDepart @9: Bool;
     leadDistanceBars @10: Int8;  # 1-3: 1 is closest, 3 is farthest. some ports may utilize 2-4 bars instead
