@@ -36,7 +36,7 @@ class CanBus(CanBusBase):
     return self._cam
 
 
-def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque):
+def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque, lkasEnabled, left_lane_visible, right_lane_visible):
   common_values = {
     "LKA_MODE": 6,
     "LKA_ICON": 0,
@@ -53,7 +53,11 @@ def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque)
   lkas_values["LKA_AVAILABLE"] = 0
 
   lfa_values = copy.copy(common_values)
-  lfa_values["NEW_SIGNAL_1"] = 0
+  lfa_values["NEW_SIGNAL_1"] = (0 if not lkasEnabled else
+                                3 if left_lane_visible and right_lane_visible else
+                                1 if left_lane_visible else
+                                2 if right_lane_visible else
+                                0)
 
   ret = []
   if CP.flags & HyundaiFlags.CANFD_LKA_STEERING:
@@ -121,9 +125,11 @@ def create_acc_cancel(packer, CP, CAN, cruise_info_copy):
   })
   return packer.make_can_msg("SCC_CONTROL", CAN.ECAN, values)
 
+
 INVALID_FRAME = -1 / DT_CTRL
 lfa_icon_last = 0
 lfa_icon_frame = INVALID_FRAME
+
 
 def create_lfahda_cluster(packer, CAN, enabled, lkasEnabled, latActive, hda_icon, frame):
   global lfa_icon_last, lfa_icon_frame
