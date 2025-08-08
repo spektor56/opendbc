@@ -115,6 +115,14 @@ struct OnroadEventDEPRECATED @0x9b1657f34caf3ad3 {
     personalityChanged @122;
     aeb @123;
 
+    manualSteeringRequired @126;
+    manualLongitudinalRequired @127;
+    silentPedalPressed @128;
+    silentButtonEnable @129;
+    silentBrakeHold @130;
+    silentWrongGear @131;
+    silentPcmEnable @132;
+
     radarCanErrorDEPRECATED @15;
     communityFeatureDisallowedDEPRECATED @62;
     radarCommIssueDEPRECATED @67;
@@ -205,6 +213,14 @@ struct CarState {
   vehicleSensorsInvalid @52 :Bool;  # invalid steering angle readings, etc.
   lowSpeedAlert @56 :Bool;  # lost steering control due to a dynamic min steering speed
   blockPcmEnable @60 :Bool;  # whether to allow PCM to enable this frame
+
+  lkasEnabled @61 :Bool;
+  leftBlinkerOn @62 :Bool;
+  rightBlinkerOn @63 :Bool;
+  automaticLaneChange @64 :Bool;
+  belowLaneChangeSpeed @65 :Bool;
+  accEnabled @66 :Bool;
+  hudLead @67 :Float32;
 
   # cruise state
   cruiseState @10 :CruiseState;
