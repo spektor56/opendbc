@@ -522,6 +522,7 @@ class TestHyundaiCanfdCarnival(TestHyundaiCanfdCarnivalBase):
     self._rx(self._pcm_status_msg(False)) # main button
     self.assertFalse(self.safety.get_controls_allowed())
 
+
 class TestHyundaiCanfdCarnivalLong(TestHyundaiCanfdLFASteeringLongBase, TestHyundaiCanfdCarnivalBase):
   SAFETY_PARAM = HyundaiSafetyFlags.CARNIVAL_STEERING_LIMITS | HyundaiSafetyFlags.LONG | HyundaiSafetyFlags.CANFD_ALT_BUTTONS
 
