@@ -23,11 +23,13 @@ ALL_GAS_EV_HYBRID_COMBOS = [
   {"GAS_MSG": ("ACCELERATOR_ALT", "ACCELERATOR_PEDAL"), "SCC_BUS": 2, "SAFETY_PARAM": HyundaiSafetyFlags.HYBRID_GAS | HyundaiSafetyFlags.CAMERA_SCC},
 ]
 
+
 class GEAR_SHIFTER(Enum):
   DRIVE = 5
   NEUTRAL = 6
   REVERSE = 7
   PARK = 0
+
 
 class TestHyundaiCanfdBase(HyundaiButtonBase, common.PandaCarSafetyTest, common.DriverTorqueSteeringSafetyTest, common.SteerRequestCutSafetyTest):
 
@@ -292,6 +294,7 @@ class TestHyundaiCanfdLFASteeringLongAltButtons(TestHyundaiCanfdLFASteeringLongB
     # Alt buttons does not use SCC_CONTROL to cancel if longitudinal
     pass
 
+
 class TestHyundaiCanfdCarnivalBase(TestHyundaiCanfdLFASteeringAltButtonsBase):
   MAX_TORQUE_LOOKUP = [0], [360]
   MAX_RATE_UP = 3
@@ -442,6 +445,7 @@ class TestHyundaiCanfdCarnivalBase(TestHyundaiCanfdLFASteeringAltButtonsBase):
     self._tx(self._lfahda_cluster(1))
     self.assertFalse(self.safety.get_lkas_enabled_synced())
 
+
 class TestHyundaiCanfdCarnival(TestHyundaiCanfdCarnivalBase):
   SAFETY_PARAM = HyundaiSafetyFlags.CARNIVAL_STEERING_LIMITS | HyundaiSafetyFlags.CANFD_ALT_BUTTONS
 
@@ -524,6 +528,7 @@ class TestHyundaiCanfdCarnivalLong(TestHyundaiCanfdLFASteeringLongBase, TestHyun
   def test_acc_cancel(self):
     # Alt buttons does not use SCC_CONTROL to cancel if longitudinal
     pass
+
 
 if __name__ == "__main__":
   unittest.main()

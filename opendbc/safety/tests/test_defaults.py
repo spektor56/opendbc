@@ -93,6 +93,7 @@ class TestAllOutput(TestDefaultRxHookBase):
     self._rx(common.make_msg(0, 0, 8))
     self.assertTrue(self.safety.get_controls_allowed(), "Controls should be allowed (LKAS resume ON)")
 
+
 class TestAllOutputPassthrough(TestAllOutput):
   FWD_BLACKLISTED_ADDRS = {}
   FWD_BUS_LOOKUP = {0: 2, 2: 0}
